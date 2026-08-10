@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#222"><meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="賣場倉庫">
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon-192.png">
+<title>賣場倉庫</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f4f5f7;color:#222;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+header{background:#fff;position:sticky;top:0;z-index:3;padding:15px;border-bottom:1px solid #ddd}h1{font-size:21px;margin:0 0 10px}.search{width:100%;padding:12px;border:1px solid #ccc;border-radius:11px;font-size:16px}
+main{max-width:780px;margin:auto;padding:12px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}.stat{background:#fff;border-radius:12px;padding:11px;text-align:center}.stat b{display:block;font-size:20px}.stat span{font-size:12px;color:#777}
+.toolbar{display:flex;gap:7px;overflow:auto;margin-bottom:10px}.btn{border:0;border-radius:10px;padding:10px 13px;white-space:nowrap;font-size:14px}.primary{background:#222;color:#fff}.light{background:#fff;border:1px solid #ddd}
+.card{background:#fff;border-radius:14px;padding:13px;margin:9px 0;box-shadow:0 1px 5px #0000000d}.row{display:flex;justify-content:space-between;align-items:center;gap:8px}.name{font-weight:700;font-size:17px}.loc{background:#eef2ff;border-radius:8px;padding:4px 8px;font-weight:700}.qty{font-size:20px;font-weight:700}.low{color:#c62828}.muted{font-size:13px;color:#777;margin-top:7px}.actions{display:flex;gap:6px;margin-top:11px}.actions button{flex:1;padding:9px;border:1px solid #ddd;background:#fafafa;border-radius:9px}.empty{text-align:center;color:#777;padding:35px}.photo{width:100%;max-height:190px;object-fit:contain;border-radius:10px;margin-top:8px;background:#eee}
+.modal{display:none;position:fixed;inset:0;background:#0007;z-index:8;align-items:flex-end}.modal.show{display:flex}.panel{background:#fff;width:100%;max-width:780px;margin:auto;padding:17px;border-radius:18px 18px 0 0;max-height:90vh;overflow:auto}
+label{display:block;color:#666;font-size:13px;margin:10px 0 5px}input,textarea{width:100%;padding:11px;border:1px solid #ccc;border-radius:9px;font-size:16px}textarea{min-height:65px}.form{display:flex;gap:8px;margin-top:14px}.form button{flex:1}
+</style></head><body>
+<header><h1>📦 賣場倉庫</h1><input id="search" class="search" placeholder="搜尋商品、地點代號、備註…"></header>
+<main>
+<div class="stats"><div class="stat"><b id="pc">0</b><span>商品種類</span></div><div class="stat"><b id="tq">0</b><span>總庫存</span></div><div class="stat"><b id="lc">0</b><span>低庫存</span></div></div>
+<div class="toolbar">
+<button class="btn primary" onclick="openAdd()">＋ 新增</button><button class="btn light" onclick="showLocations()">📍 地點</button>
+<button class="btn light" onclick="showLogs()">🧾 紀錄</button><button class="btn light" onclick="backup()">💾 備份</button>
+<button class="btn light" onclick="restoreInput.click()">📥 還原</button>
+<input id="restoreInput" type="file" accept=".json,application/json" hidden>
+</div><div id="list"></div></main>
+
+<div id="modal" class="modal" onclick="if(event.target===this)closeModal()"><div class="panel">
+<h2 id="mt">新增貨物</h2><label>商品名稱</label><input id="name" placeholder="例如：USB-C 充電線">
+<label>放置地點代號</label><input id="loc" placeholder="例如：01、02、03、05">
+<label>庫存數量</label><input id="qty" type="number" min="0" value="1">
+<label>低庫存門檻</label><input id="th" type="number" min="0" value="2">
+<label>商品照片</label><input id="photo" type="file" accept="image/*"><img id="prev" class="photo" style="display:none">
+<label>備註</label><textarea id="note" placeholder="顏色、規格…"></textarea>
+<div class="form"><button class="btn light" onclick="closeModal()">取消</button><button class="btn primary" onclick="saveItem()">儲存</button></div>
+</div></div>
+
+<script>
+let items=JSON.parse(localStorage.getItem("whItems")||"[]"),logs=JSON.parse(localStorage.getItem("whLogs")||"[]"),editId=null,photoData="";
+const $=x=>document.getElementById(x), restoreInput=$("restoreInput");
+function persist(){localStorage.setItem("whItems",JSON.stringify(items));localStorage.setItem("whLogs",JSON.stringify(logs))}
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function render(){let q=$("search").value.trim().toLowerCase(),d=items.filter(x=>(x.name+" "+x.loc+" "+(x.note||"")).toLowerCase().includes(q));d.sort((a,b)=>a.loc.localeCompare(b.loc,undefined,{numeric:true})||a.name.localeCompare(b.name));$("pc").textContent=items.length;$("tq").textContent=items.reduce((s,x)=>s+x.qty,0);$("lc").textContent=items.filter(x=>x.qty<=x.th).length;$("list").innerHTML=d.length?d.map(x=>`<div class="card"><div class="row"><div class="name">${esc(x.name)}</div><span class="loc">📍 ${esc(x.loc)}</span></div>${x.photo?`<img class="photo" src="${x.photo}">`:''}<div class="row" style="margin-top:10px"><span>庫存</span><span class="qty ${x.qty<=x.th?"low":""}">${x.qty}${x.qty<=x.th?" ⚠️":""}</span></div>${x.note?`<div class="muted">📝 ${esc(x.note)}</div>`:""}<div class="actions"><button onclick="chg('${x.id}',1)">➕ 入庫</button><button onclick="ship('${x.id}')">➖ 出貨</button><button onclick="edit('${x.id}')">編輯</button></div></div>`).join(""):'<div class="empty">沒有找到貨物</div>'}
+function openAdd(){editId=null;photoData="";$("mt").textContent="新增貨物";$("name").value="";$("loc").value="";$("qty").value=1;$("th").value=2;$("note").value="";$("photo").value="";$("prev").style.display="none";$("modal").classList.add("show")}
+function edit(id){let x=items.find(a=>a.id===id);editId=id;photoData=x.photo||"";$("mt").textContent="編輯貨物";$("name").value=x.name;$("loc").value=x.loc;$("qty").value=x.qty;$("th").value=x.th;$("note").value=x.note||"";$("prev").src=photoData;$("prev").style.display=photoData?"block":"none";$("modal").classList.add("show")}
+$("photo").onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{photoData=r.result;$("prev").src=photoData;$("prev").style.display="block"};r.readAsDataURL(f)}
+function saveItem(){let name=$("name").value.trim(),loc=$("loc").value.trim();if(!name||!loc)return alert("請填寫商品名稱與地點代號");let o={name,loc,qty:Math.max(0,+$("qty").value||0),th:Math.max(0,+$("th").value||0),note:$("note").value.trim(),photo:photoData};if(editId)Object.assign(items.find(x=>x.id===editId),o);else items.push({id:Date.now()+"",...o});persist();closeModal();render()}
+function closeModal(){$("modal").classList.remove("show")}
+function chg(id,n){let x=items.find(a=>a.id===id);x.qty+=n;persist();render()}
+function ship(id){let x=items.find(a=>a.id===id),n=+prompt("出貨數量",1);if(!Number.isFinite(n)||n<1)return;if(n>x.qty)return alert("庫存不足");x.qty-=n;logs.unshift({time:new Date().toLocaleString("zh-TW"),name:x.name,loc:x.loc,qty:n});persist();render()}
+function showLocations(){let m={};items.forEach(x=>m[x.loc]=(m[x.loc]||0)+x.qty);alert(Object.keys(m).sort((a,b)=>a.localeCompare(b,undefined,{numeric:true})).map(k=>"📍 "+k+"："+m[k]+" 件").join("\\n")||"沒有資料")}
+function showLogs(){alert(logs.slice(0,30).map(x=>x.time+"\\n"+x.name+"｜地點 "+x.loc+"｜出貨 "+x.qty+" 件").join("\\n\\n")||"沒有出貨紀錄")}
+function backup(){let b=new Blob([JSON.stringify({items,logs},null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="賣場倉庫備份.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
+restoreInput.onchange=e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{try{let d=JSON.parse(r.result);if(!Array.isArray(d.items))throw 0;if(!confirm("還原會覆蓋目前資料，確定嗎？"))return;items=d.items;logs=Array.isArray(d.logs)?d.logs:[];persist();render();alert("還原完成")}catch{alert("備份檔格式不正確")}};r.readAsText(f);e.target.value=""}
+$("search").oninput=render;render();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script></body></html>
