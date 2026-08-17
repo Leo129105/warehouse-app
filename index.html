@@ -122,9 +122,8 @@
     messagingSenderId: "570923244693",
     appId: "1:570923244693:web:1b815db517650afc5d4f9c"
   };
-const db = getFirestore();
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 </script>
 </head>
 
