@@ -124,6 +124,10 @@
   };
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+    window.db = db;
+window.doc = doc;
+window.setDoc = setDoc;
+window.getDoc = getDoc;
     const warehouseRef = doc(db, "warehouseItems", "items");
 </script>
 </head>
