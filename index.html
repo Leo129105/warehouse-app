@@ -336,7 +336,20 @@ window.addItem = addItem;
   }
 
   showItems();
+async function loadItems() {
+    try {
+        const docSnap = await getDoc(doc(db, "warehouseItems", "items"));
 
+        if (docSnap.exists()) {
+            items = docSnap.data().items || [];
+            localStorage.setItem("warehouseItems", JSON.stringify(items));
+            renderItems();
+        }
+    } catch (error) {
+        console.error("讀取 Firebase 資料失敗：", error);
+    }
+}
+  loadItems();
 </script>
 
 </body>
